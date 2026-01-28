@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+  </Folder>
+  <Project Path="Toolbox.Api/Toolbox.Api.csproj" />
+  <Project Path="Toolbox.Application/Toolbox.Application.csproj" />
+  <Project Path="Toolbox.Core/Toolbox.Core.csproj" />
+  <Project Path="Toolbox.Infrastructure/Toolbox.Infrastructure.csproj" />
+</Solution>

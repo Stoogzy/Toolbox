@@ -1,0 +1,1 @@
+dotnet ef database update --project Toolbox.Infrastructure --startup-project Toolbox.Api

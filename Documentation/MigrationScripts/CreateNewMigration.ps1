@@ -1,0 +1,2 @@
+$MigrationName = Read-Host -Prompt "Please enter a name for your migration:"
+dotnet ef migrations add $MigrationName --project Toolbox.Infrastructure --startup-project Toolbox.Api --output-dir Persistence/Migrations
