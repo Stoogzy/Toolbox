@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Toolbox.Application.Common.Exceptions;
 using Toolbox.Application.Common.Interfaces;
 using Toolbox.Core.Entities;
 
@@ -24,9 +25,13 @@ internal class UpdateEmployeeCommandHandler(IApplicationDbContext dbContext)
 
         if (employee == null)
         {
-            throw new Exception($"Employee with ID: {command.Id}, not found.");
+            throw new NotFoundException(nameof(Employee), command.Id);
         }
 
+        if (command.FirstName != null) employee.FirstName = command.FirstName;
+        if (command.LastName != null) employee.LastName = command.LastName;
+        if (command.Salary != null) employee.Salary = command.Salary.Value;
 
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

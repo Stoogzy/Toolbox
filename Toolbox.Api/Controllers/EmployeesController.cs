@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Toolbox.Application.Employees.Command.Create;
+using Toolbox.Application.Employees.Command.Delete;
 using Toolbox.Application.Employees.Command.Update;
 using Toolbox.Application.Employees.Dtos;
 using Toolbox.Application.Employees.Queries.GetAll;
@@ -31,23 +32,39 @@ public class EmployeesController(ISender mediator) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<EmployeeDto>> GetById(Guid id)
     {
-        return Ok(await mediator.Send(new GetEmployeeByIdQuery(id)));
+        EmployeeDto employeeDto = await mediator.Send(new GetEmployeeByIdQuery(id));
+
+        return StatusCode(StatusCodes.Status200OK, employeeDto);
     }
 
     [HttpPut("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Update(Guid id, UpdateEmployeeCommand command)
     {
-        if (id != command.Id) return BadRequest();
-        await Mediator.Send(command);
-        return NoContent();
+        if (id != command.Id)
+        {
+            return BadRequest("ID in URL does not match ID in request body.");
+        }
+
+        await mediator.Send(command);
+
+        // Standard response for a successful update with no returned body
+        return StatusCode(StatusCodes.Status204NoContent);
     }
 
     [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(Guid id)
     {
-        await Mediator.Send(new DeleteEmployeeCommand(id));
-        return NoContent();
+        await mediator.Send(new DeleteEmployeeCommand(id));
+
+        return StatusCode(StatusCodes.Status204NoContent);
     }
 }
