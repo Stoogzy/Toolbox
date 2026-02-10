@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Toolbox.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public abstract class ApiControllerBase : ControllerBase
 {
     private ISender? _mediator;

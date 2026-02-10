@@ -1,6 +1,8 @@
 ﻿using FluentValidation;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
+using Toolbox.Application.Common.Behaviours;
 
 namespace Toolbox.Application;
 
@@ -15,7 +17,8 @@ public static class DependencyInjection
         {
             config.RegisterServicesFromAssembly(assembly);
 
-            // Add Validation Pipeline Behaviours Here.
+            // Hook Validation behaviour up to MediatR.
+            config.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
         });
 
         // Register FluentValidation validators.

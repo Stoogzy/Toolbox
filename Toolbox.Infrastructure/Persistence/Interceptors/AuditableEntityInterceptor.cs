@@ -1,39 +1,47 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Toolbox.Core.Common;
 
 namespace Toolbox.Infrastructure.Persistence.Interceptors;
 
 public class AuditableEntityInterceptor : SaveChangesInterceptor
 {
+    public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        UpdateEntities(eventData.Context);
+        return base.SavingChanges(eventData, result);
+    }
+
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        DbContext? context = eventData.Context;
+        UpdateEntities(eventData.Context);
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
 
+    public void UpdateEntities(DbContext? context)
+    {
         if (context == null)
         {
-            return base.SavingChangesAsync(eventData, result, cancellationToken);
+            return;
         }
 
-        // This logic looks for entities that implement a specific 'Auditable' interface
-        foreach (var entry in context.ChangeTracker.Entries<dynamic>())
+        // Filter the tracker to only entities implementing IAuditableEntity.
+        foreach (var entry in context.ChangeTracker.Entries<IAuditableEntity>())
         {
-            // We'll refine this once we create your Domain entities
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.Created = DateTime.UtcNow;
-                entry.Entity.CreatedBy = "System/CurrentUserId"; // Logic for current user goes here.
+                entry.Entity.CreatedBy = "System";
             }
 
-            if (entry.State == EntityState.Modified)
+            if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
             {
                 entry.Entity.LastModified = DateTime.UtcNow;
-                entry.Entity.LastModifiedBy = "System/CurrentUserId";
+                entry.Entity.LastModifiedBy = "System";
             }
         }
-
-        return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 }

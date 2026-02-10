@@ -8,9 +8,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     : DbContext(options), IApplicationDbContext
 {
     //DbSet Entities Here:
-    DbSet<Project> Projects { get; set; }
-    DbSet<Employee> Employees { get; set; }
-    DbSet<Sprint> Sprints { get; set; }
+    public DbSet<Project> Projects { get; set; }
+    public DbSet<Employee> Employees { get; set; }
+    public DbSet<Sprint> Sprints { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
