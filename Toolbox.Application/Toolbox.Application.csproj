@@ -17,4 +17,8 @@
     <ProjectReference Include="..\Toolbox.Core\Toolbox.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Projects\Queries\" />
+  </ItemGroup>
+
 </Project>
