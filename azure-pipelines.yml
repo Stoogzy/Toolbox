@@ -33,3 +33,26 @@ steps:
   # Run all test projects. --no-build skips rebuilding/recompiling what we just built in the previous script.
   - script: dotnet test --configuration $(buildConfiguration) --no-build --verbosity normal
     displayName: 'Run tests'
+
+  # Compile and publish the API to a staging folder on the agent.
+  # $(Build.ArtifactStagingDirectory) is a built-in variable, for a temp folder that Azure Pipelines guarantees exists and is clean on every run.
+  - script: >
+      dotnet publish Toolbox.Api/Toolbox.Api.csproj
+      --configuration $(buildConfiguration)
+      --output $(Build.ArtifactStagingDirectory)/api
+    displayName: 'Publish API'
+
+  # Upload that folder as a named artifact called 'toolbox-api'
+  # It will appear in the pipeline run UI and can be downloaded by later stages.
+  - task: PublishPipelineArtifact@1
+    displayName: 'Upload artifact'
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/api
+      artifact: toolbox-api
+
+# Built In Variables Worth Knowing/Being Aware Of:
+# $(Build.ArtifactStagingDirectory) > A clean temp folder, e.g /home/runner/work/_temp.
+# $(Build.BuildId) > the unique run number.
+# $(Build.SourceBranchName) > The branch that triggered the run, e.g main.
+# $(Pipeline.Workspace) > Root workspace folder, used in the deploy stages to download artifacts.
+# Azure Pipelines injects these automatically, I never need to set them myself. 
