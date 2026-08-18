@@ -1,0 +1,35 @@
+# Tells the pipeline when to run, i.e on every push to main.
+trigger:
+  branches:
+    include:
+      - main
+
+# Use a free Microsoft-hosted Linux agent.
+pool:
+  vmImage: ubuntu-latest
+
+# Centralised values that can be reused across multiple steps below.
+variables:
+  buildConfiguration: Release
+  dotnetVersion: '10.x'
+
+steps:
+  # Agents don't have .NET pre-installed, this downloads and installs it.
+  # includePreviewVersions is required for .NET 10 whilst it is in preview.
+  - task: UseDotNet@2
+    displayName: 'Install .NET SDK'
+    inputs:
+      version: $(dotnetVersion)
+      includePreviewVersions: true
+
+  # This downloads all the Nuget packages the solution uses. Sensible to separate this into it's own step so we can see if this step specifically fails.
+  - script: dotnet restore
+    displayName: 'Restore Packages'
+
+  # Compile in release mode. --no-restore avoids running the above restore script twice.
+  - script: dotnet build --configuration $(buildConfiguration) --no-restore
+    displayName: 'Build solution'
+
+  # Run all test projects. --no-build skips rebuilding/recompiling what we just built in the previous script.
+  - script: dotnet test --configuration $(buildConfiguration) --no-build --verbosity normal
+    displayName: 'Run tests'
