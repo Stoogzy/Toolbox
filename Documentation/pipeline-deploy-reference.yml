@@ -1,0 +1,254 @@
+# =============================================================================
+# REFERENCE FILE — DO NOT USE AS A PIPELINE
+# =============================================================================
+# This file is NOT picked up by Azure DevOps as a pipeline. It lives in
+# Documentation/ purely as annotated learning material.
+#
+# It shows the FULL multi-stage CI/CD pipeline pattern including:
+#   - Stage 1: Build, test, and produce a deployable artifact
+#   - Stage 2: Deploy to a Dev environment
+#   - Stage 3: Deploy to Production (requires manual approval)
+#
+# The working pipeline is /azure-pipelines.yml (build + test only).
+# Once Azure App Service VM quota is available, the structure below is what
+# you would copy into azure-pipelines.yml to enable live deployment.
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TRIGGER
+# Run this pipeline on every push to main.
+# ─────────────────────────────────────────────────────────────────────────────
+trigger:
+  branches:
+    include:
+      - main
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VARIABLES
+# Centralised values referenced throughout the file with $(variableName).
+# Sensitive values (connection strings, keys) are stored as secret pipeline
+# variables in the Azure DevOps UI — never hard-coded here.
+# ─────────────────────────────────────────────────────────────────────────────
+variables:
+  buildConfiguration: Release
+  dotnetVersion: '10.x'
+  # These would be set as secret variables in the DevOps pipeline UI,
+  # not written here — shown as placeholders for documentation purposes.
+  # azureSubscription: set in UI as 'azure-toolbox-connection'
+  # devAppServiceName: set in UI e.g. 'toolbox-api-stoogzy'
+  # prodAppServiceName: set in UI e.g. 'toolbox-api-stoogzy-prod'
+
+# =============================================================================
+# STAGE 1 — BUILD & TEST
+# Compiles the solution, runs tests, and produces a deployable artifact.
+# All subsequent stages depend on this one passing.
+# =============================================================================
+stages:
+
+  - stage: Build
+    displayName: 'Build & Test'
+    jobs:
+      - job: BuildJob
+        # Each job runs on its own fresh agent VM.
+        # The agent is provisioned, used, and discarded after the job.
+        pool:
+          vmImage: ubuntu-latest
+
+        steps:
+          # ── Install the .NET SDK ──────────────────────────────────────────
+          # Agents do not have the SDK pre-installed.
+          # includePreviewVersions is required for .NET 10 while it's in preview.
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK'
+            inputs:
+              version: $(dotnetVersion)
+              includePreviewVersions: true
+
+          # ── Restore NuGet packages ────────────────────────────────────────
+          # Downloads all packages declared in .csproj files.
+          # Kept as a separate step so logs isolate restore failures clearly.
+          - script: dotnet restore
+            displayName: 'Restore packages'
+
+          # ── Build ─────────────────────────────────────────────────────────
+          # --no-restore avoids restoring again (already done above, saves ~30s).
+          - script: dotnet build --configuration $(buildConfiguration) --no-restore
+            displayName: 'Build solution'
+
+          # ── Test ──────────────────────────────────────────────────────────
+          # --no-build avoids recompiling (already compiled above).
+          # A failing test here blocks ALL subsequent stages (Deploy, etc.).
+          - script: dotnet test --configuration $(buildConfiguration) --no-build --verbosity normal
+            displayName: 'Run tests'
+
+          # ── Publish the API ───────────────────────────────────────────────
+          # 'dotnet publish' compiles + copies all output files (DLLs, config,
+          # wwwroot etc.) into a single folder ready for deployment.
+          # $(Build.ArtifactStagingDirectory) is a built-in Azure Pipelines
+          # variable — a guaranteed clean temp folder on every run.
+          - script: >
+              dotnet publish Toolbox.Api/Toolbox.Api.csproj
+              --configuration $(buildConfiguration)
+              --output $(Build.ArtifactStagingDirectory)/api
+            displayName: 'Publish API'
+
+          # ── Upload artifact ───────────────────────────────────────────────
+          # Uploads the publish output as a named artifact 'toolbox-api'.
+          # Artifacts persist across stages so the Deploy stage can download
+          # this exact output, even though it runs on a different agent.
+          - task: PublishPipelineArtifact@1
+            displayName: 'Upload artifact'
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/api
+              artifact: toolbox-api
+
+  # ===========================================================================
+  # STAGE 2 — DEPLOY TO DEV
+  # Downloads the artifact from Stage 1 and deploys it to the Dev App Service.
+  #
+  # Key concepts introduced here:
+  #   dependsOn   — this stage only starts after Build succeeds
+  #   condition   — skip this stage entirely if Build failed
+  #   deployment  — special job type that links to an Azure DevOps Environment,
+  #                 enabling deployment history tracking and approval gates
+  #   environment — a named target registered in Azure DevOps under Pipelines >
+  #                 Environments. The pipeline auto-creates it on first run.
+  #   strategy    — runOnce is the simplest strategy: run steps once, done.
+  #                 Other strategies include canary and rolling for zero-downtime.
+  # ===========================================================================
+  - stage: Deploy_Dev
+    displayName: 'Deploy → Dev'
+    dependsOn: Build          # do not start until Build stage finishes
+    condition: succeeded()    # skip entirely if Build failed
+
+    jobs:
+      - deployment: DeployDev
+        displayName: 'Deploy to Dev App Service'
+        pool:
+          vmImage: ubuntu-latest
+
+        # 'environment' is the Azure DevOps Environment name.
+        # It appears under Pipelines > Environments after the first run.
+        # You can add approval checks, required reviewers, and branch policies
+        # to an environment in the Azure DevOps UI.
+        environment: dev
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # ── Download artifact ───────────────────────────────────────
+                # 'download: current' fetches artifacts from THIS pipeline run.
+                # The artifact lands at $(Pipeline.Workspace)/toolbox-api/
+                - download: current
+                  artifact: toolbox-api
+
+                # ── Configure App Service settings ──────────────────────────
+                # Injects environment-specific configuration into the App Service
+                # as Application Settings (environment variables at runtime).
+                # $(AppInsightsConnectionString) and $(SqlConnectionString) are
+                # secret pipeline variables set in the DevOps UI — never in YAML.
+                - task: AzureAppServiceSettings@1
+                  displayName: 'Configure App Settings'
+                  inputs:
+                    azureSubscription: 'azure-toolbox-connection'
+                    appName: '$(devAppServiceName)'
+                    appSettings: |
+                      [
+                        {
+                          "name": "ASPNETCORE_ENVIRONMENT",
+                          "value": "Development",
+                          "slotSetting": false
+                        },
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "$(AppInsightsConnectionString)",
+                          "slotSetting": false
+                        },
+                        {
+                          "name": "ConnectionStrings__DefaultConnection",
+                          "value": "@Microsoft.KeyVault(SecretUri=https://kv-toolbox-dev.vault.azure.net/secrets/SqlConnectionString/)",
+                          "slotSetting": false
+                        }
+                      ]
+
+                # ── Deploy the app ──────────────────────────────────────────
+                # AzureWebApp@1 zips the artifact folder and pushes it to the
+                # App Service using the Kudu deployment engine under the hood.
+                # appType: webAppLinux tells it to target a Linux App Service.
+                - task: AzureWebApp@1
+                  displayName: 'Deploy to Azure App Service (Dev)'
+                  inputs:
+                    azureSubscription: 'azure-toolbox-connection'
+                    appType: webAppLinux
+                    appName: '$(devAppServiceName)'
+                    package: $(Pipeline.Workspace)/toolbox-api
+
+  # ===========================================================================
+  # STAGE 3 — DEPLOY TO PRODUCTION
+  # Identical to Deploy_Dev but targets the production App Service.
+  #
+  # Key concept: approval gate
+  #   Because this job targets 'environment: production', and the 'production'
+  #   environment has an Approvals check configured in Azure DevOps, the pipeline
+  #   will PAUSE here and send you an email asking you to approve.
+  #   The pipeline only continues once you click Approve in the DevOps UI.
+  #
+  # To set up the approval gate:
+  #   Azure DevOps → Pipelines → Environments → production
+  #   → Approvals and checks → + Add → Approvals
+  #   → Add yourself as approver → Create
+  # ===========================================================================
+  - stage: Deploy_Production
+    displayName: 'Deploy → Production'
+    dependsOn: Deploy_Dev      # only run after Dev deploy succeeds
+    condition: succeeded()
+
+    jobs:
+      - deployment: DeployProd
+        displayName: 'Deploy to Production App Service'
+        pool:
+          vmImage: ubuntu-latest
+
+        # The 'production' environment has an Approvals check.
+        # The pipeline pauses here, emails you, and waits for your click.
+        environment: production
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: toolbox-api
+
+                - task: AzureAppServiceSettings@1
+                  displayName: 'Configure App Settings (Prod)'
+                  inputs:
+                    azureSubscription: 'azure-toolbox-connection'
+                    appName: '$(prodAppServiceName)'
+                    appSettings: |
+                      [
+                        {
+                          "name": "ASPNETCORE_ENVIRONMENT",
+                          "value": "Production",
+                          "slotSetting": false
+                        },
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "$(AppInsightsConnectionStringProd)",
+                          "slotSetting": false
+                        },
+                        {
+                          "name": "ConnectionStrings__DefaultConnection",
+                          "value": "@Microsoft.KeyVault(SecretUri=https://kv-toolbox-prod.vault.azure.net/secrets/SqlConnectionString/)",
+                          "slotSetting": false
+                        }
+                      ]
+
+                - task: AzureWebApp@1
+                  displayName: 'Deploy to Azure App Service (Production)'
+                  inputs:
+                    azureSubscription: 'azure-toolbox-connection'
+                    appType: webAppLinux
+                    appName: '$(prodAppServiceName)'
+                    package: $(Pipeline.Workspace)/toolbox-api
