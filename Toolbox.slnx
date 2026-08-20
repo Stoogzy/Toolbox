@@ -7,4 +7,5 @@
   <Project Path="Toolbox.Application/Toolbox.Application.csproj" />
   <Project Path="Toolbox.Core/Toolbox.Core.csproj" />
   <Project Path="Toolbox.Infrastructure/Toolbox.Infrastructure.csproj" />
+  <Project Path="Toolbox.UnitTests/Toolbox.UnitTests.csproj" />
 </Solution>
