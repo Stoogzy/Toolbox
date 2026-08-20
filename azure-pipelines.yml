@@ -108,3 +108,36 @@ stages:
                     appType: webAppLinux
                     appName: 'toolbox-api-stoogzy'
                     package: $(Pipeline.Workspace)/toolbox-api
+
+  # ─────────────────────────────────────────────
+  # STAGE 3: Deploy to Production
+  # Only runs after Deploy_Dev succeeds.
+  # The 'production' environment has an Approvals check configured in
+  # Azure DevOps. The pipeline will PAUSE here and email you before
+  # continuing. You must click Approve in the DevOps UI to proceed.
+  # ─────────────────────────────────────────────
+  - stage: Deploy_Production
+    displayName: Deploy → Production
+    dependsOn: Deploy_Dev
+    condition: succeeded()
+    jobs:
+      - deployment: DeployProd
+        displayName: 'Deploy to Production App Service'
+        pool:
+          vmImage: ubuntu-latest
+        # The pipeline will pause here until it has been approved in DevOps.
+        environment: production
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: toolbox-api
+
+                - task: AzureWebAp@1
+                  displayName: 'Deploy to Azure App Service (Production)'
+                  inputs:
+                    azureSubscription: 'azure-toolbox-connection'
+                    appType: webAppLinux
+                    appName: 'toolbox-api-stoogzy-prod'
+                    package: $(Pipeline.Workspace)/toolbox-api
