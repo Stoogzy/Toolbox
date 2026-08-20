@@ -134,7 +134,7 @@ stages:
                 - download: current
                   artifact: toolbox-api
 
-                - task: AzureWebAp@1
+                - task: AzureWebApp@1
                   displayName: 'Deploy to Azure App Service (Production)'
                   inputs:
                     azureSubscription: 'azure-toolbox-connection'
