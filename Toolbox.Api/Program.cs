@@ -43,6 +43,9 @@ apiVersioningBuilder.AddApiExplorer(options =>
     options.SubstituteApiVersionInUrl = true;
 });
 
+// Add Application Insights
+builder.Services.AddApplicationInsightsTelemetry();
+
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.
