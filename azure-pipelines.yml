@@ -75,9 +75,9 @@ stages:
   # ─────────────────────────────────────────────
   - stage: Deploy_Dev
     displayName: 'Deploy → Dev'
-    # Explicit ordering — Deploy_Dev won't start until Build finishes.
+    # Explicit ordering, Deploy_Dev won't start until Build finishes.
     dependsOn: Build
-    # Gates the stage — if Build fails, Deploy is skipped entirely.
+    # Gates the stage, if Build fails, Deploy is skipped entirely.
     condition: succeeded()
     jobs:
       # 'deployment' (not 'job') links this to an Environment in Azure DevOps.
@@ -90,7 +90,7 @@ stages:
         # The pipeline will create it automatically on the first run if it doesn't exist.
         environment: dev
         strategy:
-          # Simplest deployment strategy — run the steps once, done.
+          # Simplest deployment strategy, run the steps once, done.
           runOnce:
             deploy:
               steps:
@@ -98,19 +98,6 @@ stages:
                 # It lands at $(Pipeline.Workspace)/toolbox-api/ on this agent.
                 - download: current
                   artifact: toolbox-api
-
-                # Inject environment-specific config into the App Service at deploy time.
-                # Secret pipeline variables (never in YAML) are referenced as $(VarName).
-                - task: AzureAppServiceSettings@1
-                  displayName: 'Configure App Settings (Dev)'
-                  inputs:
-                    azureSubscription: 'azure-toolbox-connection'
-                    appName: 'toolbox-api-stoogzy'
-                    appSettings: |
-                      [
-                        { "name": "ASPNETCORE_ENVIRONMENT", "value": "Development", "slotSetting": false },
-                        { "name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "value": "$(AppInsightsConnectionString)", "slotSetting": false }
-                      ]
 
                 # Deploy the artifact zip to the Azure App Service.
                 # AzureWebApp@1 uses the Kudu deployment engine under the hood.
@@ -120,48 +107,4 @@ stages:
                     azureSubscription: 'azure-toolbox-connection'
                     appType: webAppLinux
                     appName: 'toolbox-api-stoogzy'
-                    package: $(Pipeline.Workspace)/toolbox-api
-
-  # ─────────────────────────────────────────────
-  # STAGE 3: Deploy to Production
-  # Only runs after Deploy_Dev succeeds.
-  # The 'production' environment has an Approvals check configured in Azure DevOps —
-  # the pipeline will PAUSE here and email you before continuing.
-  # ─────────────────────────────────────────────
-  - stage: Deploy_Production
-    displayName: 'Deploy → Production'
-    dependsOn: Deploy_Dev
-    condition: succeeded()
-    jobs:
-      - deployment: DeployProd
-        displayName: 'Deploy to Production App Service'
-        pool:
-          vmImage: ubuntu-latest
-        # The 'production' environment has an Approvals check.
-        # Pipeline pauses here, sends an email, and waits for your approval click.
-        environment: production
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - download: current
-                  artifact: toolbox-api
-
-                - task: AzureAppServiceSettings@1
-                  displayName: 'Configure App Settings (Production)'
-                  inputs:
-                    azureSubscription: 'azure-toolbox-connection'
-                    appName: 'toolbox-api-stoogzy-prod'
-                    appSettings: |
-                      [
-                        { "name": "ASPNETCORE_ENVIRONMENT", "value": "Production", "slotSetting": false },
-                        { "name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "value": "$(AppInsightsConnectionStringProd)", "slotSetting": false }
-                      ]
-
-                - task: AzureWebApp@1
-                  displayName: 'Deploy to Azure App Service (Production)'
-                  inputs:
-                    azureSubscription: 'azure-toolbox-connection'
-                    appType: webAppLinux
-                    appName: 'toolbox-api-stoogzy-prod'
                     package: $(Pipeline.Workspace)/toolbox-api
