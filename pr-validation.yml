@@ -1,0 +1,136 @@
+# This pipeline runs on Pull Requests that target main only.
+# It has no deployment stages, it is only here to verify the code builds successfully and all tests pass prior to merging to main.
+
+# Never run on a push, PRs only.
+trigger: none
+
+# Run this pipeline when a PR targets main.
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  buildConfiguration: Release
+  dotnetVersion: '10.x'
+
+steps:
+  # Install the .NET SDK
+  - task: UseDotNet@2
+    displayName: 'Install .NET SDK'
+    inputs:
+      version: $(dotnetVersion)
+      includePreviewVersions: true
+
+  # Restore packages.
+  - script: dotnet restore
+    displayName: 'Restore Packages'
+
+  # Build (Any compile error fails the PR)
+  - script: dotnet build --configuration $(buildConfiguration) --no-restore
+    displayName: 'Build Solution'
+
+  # Test (Any failings tests fails the PR)
+  - script: dotnet test --configuration $(buildConfiguration) --no-build --verbosity normal
+    displayName: 'Run Tests'
+
+  # ── CODE COVERAGE (future reference) ───────────────────────────────────────
+  # Collects test coverage and publishes it to the pipeline run summary.
+  # Requires the 'coverlet.collector' NuGet package in test projects.
+  #
+  # - script: >
+  #     dotnet test --configuration $(buildConfiguration) --no-build
+  #     --collect:"XPlat Code Coverage"
+  #     --results-directory $(Agent.TempDirectory)/coverage
+  #   displayName: 'Run tests with coverage'
+  #
+  # - task: PublishCodeCoverageResults@2
+  #   displayName: 'Publish code coverage'
+  #   inputs:
+  #     summaryFileLocation: $(Agent.TempDirectory)/coverage/**/coverage.cobertura.xml
+
+  # ── ENFORCE COVERAGE THRESHOLD (future reference) ──────────────────────────
+  # Fails the PR if line coverage drops below a set percentage.
+  # Prevents PRs from being merged if they reduce test coverage.
+  #
+  # - script: |
+  #     threshold=80
+  #     coverage=$(grep -oP 'line-rate="\K[^"]+' coverage.xml | head -1)
+  #     covered=$(echo "$coverage * 100" | bc)
+  #     echo "Coverage: $covered%"
+  #     if (( $(echo "$covered < $threshold" | bc -l) )); then
+  #       echo "##[error]Coverage $covered% is below threshold $threshold%"
+  #       exit 1
+  #     fi
+  #   displayName: 'Enforce coverage threshold'
+
+  # ── SECURITY SCANNING (future reference) ───────────────────────────────────
+  # Scans NuGet packages for known CVEs.
+  # Exits non-zero if any vulnerable packages are found — blocks the PR.
+  #
+  # - script: |
+  #     dotnet list package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+  #     if grep -q "has the following vulnerable packages" vulnerable.txt; then
+  #       echo "##[error]Vulnerable NuGet packages found — see output above"
+  #       exit 1
+  #     fi
+  #   displayName: 'Scan for vulnerable NuGet packages'
+
+  # ── SECRET SCANNING (future reference) ─────────────────────────────────────
+  # Detects accidentally committed secrets (API keys, passwords, tokens).
+  # Uses gitleaks — a popular open source secret scanning tool.
+  #
+  # - script: |
+  #     curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_x64.tar.gz | tar xz
+  #     ./gitleaks detect --source . --exit-code 1
+  #   displayName: 'Scan for secrets (gitleaks)'
+
+  # ── LINTING / FORMATTING (future reference) ────────────────────────────────
+  # .NET code style is already enforced at build time via .editorconfig and
+  # EnforceCodeStyleInBuild=true in Directory.Build.props (set in this repo).
+  # Warnings are already promoted to errors by the Build step above.
+  #
+  # For stricter enforcement — treat ALL warnings as errors:
+  # - script: dotnet build --configuration $(buildConfiguration) /warnaserror
+  #   displayName: 'Build with all warnings as errors'
+
+# =============================================================================
+# BRANCH PROTECTION — configured in GitHub, not in this YAML file
+# Go to: github.com/Stoogzy/Toolbox → Settings → Branches → main
+# =============================================================================
+#
+# ✅ Require a pull request before merging
+#
+# ✅ Require status checks to pass before merging
+#    → Add: 'PR Validation' (this pipeline)
+#
+# ✅ Require branches to be up to date before merging
+#    → Prevents stale branches merging without having seen recent main changes
+#
+# ── MULTIPLE APPROVERS (future reference) ──────────────────────────────────
+# Require N approving reviews before a PR can be merged:
+#   → Settings → Branches → "Require N approving reviews before merging"
+#   → N=1 for solo/small projects, N=2 for team projects
+#   → Enable "Dismiss stale pull request approvals when new commits are pushed"
+#      so a new commit after approval forces a re-review
+#
+# ── RESTRICT WHO CAN PUSH TO MAIN (future reference) ───────────────────────
+#   → Settings → Branches → "Restrict who can push to matching branches"
+#   → Add only trusted accounts — everyone else must go through a PR
+#
+# ── CODEOWNERS (future reference) ──────────────────────────────────────────
+# Create a .github/CODEOWNERS file to require specific reviewers for
+# specific files or folders. Example:
+#
+#   # All pipeline changes require your review
+#   *.yml @Stoogzy
+#
+#   # Migration scripts require your review
+#   /Documentation/MigrationScripts/ @Stoogzy
+#
+# CODEOWNERS is enforced automatically when "Require review from Code Owners"
+# is enabled in branch protection settings.
+    
