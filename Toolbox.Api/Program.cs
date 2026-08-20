@@ -49,24 +49,21 @@ builder.Services.AddApplicationInsightsTelemetry();
 WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        // Adding Api Versioning
-        IReadOnlyList<ApiVersionDescription> descriptions = app.DescribeApiVersions();
+    // Adding Api Versioning
+    IReadOnlyList<ApiVersionDescription> descriptions = app.DescribeApiVersions();
 
-        foreach (ApiVersionDescription description in descriptions)
-        {
-            options.SwaggerEndpoint(
-            $"swagger/{description.GroupName}/swagger.json",
-            description.GroupName.ToUpperInvariant());
-            
-        }
-        options.RoutePrefix = string.Empty;
-    });
-}
+    foreach (ApiVersionDescription description in descriptions)
+    {
+        options.SwaggerEndpoint(
+        $"swagger/{description.GroupName}/swagger.json",
+        description.GroupName.ToUpperInvariant());
+
+    }
+    options.RoutePrefix = string.Empty;
+});
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
