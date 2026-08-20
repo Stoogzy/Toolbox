@@ -106,7 +106,7 @@ stages:
                   inputs:
                     azureSubscription: 'azure-toolbox-connection'
                     appType: webAppLinux
-                    appName: 'toolbox-api-stoogzy'
+                    appName: $(devAppServiceName)
                     package: $(Pipeline.Workspace)/toolbox-api
 
   # ─────────────────────────────────────────────
@@ -139,5 +139,5 @@ stages:
                   inputs:
                     azureSubscription: 'azure-toolbox-connection'
                     appType: webAppLinux
-                    appName: 'toolbox-api-stoogzy-prod'
+                    appName: $(prodAppServiceName)
                     package: $(Pipeline.Workspace)/toolbox-api
