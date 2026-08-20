@@ -112,6 +112,22 @@ stages:
                     appName: $(devAppServiceName)
                     package: $(Pipeline.Workspace)/toolbox-api
 
+                # Add Application Insights to the environment
+                - task: AzureAppServiceSettings@1
+                  displayName: 'Configure App Settings'
+                  inputs:
+                    azureSubscription: 'azure-toolbox-connection'
+                    appName: $(devAppServiceName)
+                    resourceGroupName: 'rg-toolbox-dev'
+                    appSettings: |
+                      [
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "$(AppInsightsConnectionString)",
+                          "slotSetting": false
+                        }
+                      ]
+
   # ─────────────────────────────────────────────
   # STAGE 3: Deploy to Production
   # Only runs after Deploy_Dev succeeds.
@@ -144,3 +160,19 @@ stages:
                     appType: webAppLinux
                     appName: $(prodAppServiceName)
                     package: $(Pipeline.Workspace)/toolbox-api
+
+                # Add Application Insights to the environment
+                - task: AzureAppServiceSettings@1
+                  displayName: 'Configure App Settings'
+                  inputs:
+                    azureSubscription: 'azure-toolbox-connection'
+                    appName: $(prodAppServiceName)
+                    resourceGroupName: 'rg-toolbox-dev'
+                    appSettings: |
+                      [
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "$(AppInsightsConnectionString)",
+                          "slotSetting": false
+                        }
+                      ]
