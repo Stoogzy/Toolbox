@@ -4,6 +4,9 @@ trigger:
     include:
       - main
 
+# Only want to run this main pipeline on pushes to main, PR Validation is captured by separate pr-validation.yml pipeline.
+pr: none 
+
 # Centralised values that can be reused across multiple steps below.
 variables:
   buildConfiguration: Release
